@@ -52,6 +52,12 @@ unzip_yaml <- function(yaml_files_download) {
    walk(yaml_files_download, function(yaml_files_download) {
      unzip(yaml_files_download, exdir = "temp_yaml_files/")
      })
+  
+  # Clear the temporary yaml zip files to save space for git commits
+  unlink("temp_yaml_files/rhf.zip", recursive = TRUE)
+  unlink("temp_yaml_files/rlc.zip", recursive = TRUE)
+  unlink("temp_yaml_files/odms.zip", recursive = TRUE)
+  unlink("temp_yaml_files/odis.zip", recursive = TRUE)
 }
 
 extract_yaml_info <- function (yaml_files) {
@@ -272,7 +278,7 @@ plot_innings_runs_dag <- function(dag) {
     ggplot(aes(x=x, y=y, xend=xend, yend=yend, color=label)) +
     geom_dag_point() +
     geom_dag_edges_diagonal(edge_alpha = 0.5) +
-    geom_dag_label(size = 2.5) +
+    geom_dag_label(size = 2.5, show.legend = FALSE) +
     scale_color_manual(breaks = c("adjusted", "exposure", "outcome", "unadjusted"), 
                        values = c("#D55E00", "#009E73", "#56B4E9", NA)) +
     theme_dag()
