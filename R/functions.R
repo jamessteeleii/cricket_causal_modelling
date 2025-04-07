@@ -184,7 +184,7 @@ summarise_total_scores <- function(bbb_data, results_df) {
   
 }
 
-# Directed Acyclic Graph for causal models ----
+# Directed Acyclic Graph for causal models -----
 create_main_dag <- function(){
   dag <- dagitty("dag {
 
