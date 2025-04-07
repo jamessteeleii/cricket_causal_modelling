@@ -188,23 +188,6 @@ summarise_total_scores <- function(bbb_data, results_df) {
 create_main_dag <- function(){
   dag <- dagitty("dag {
 
-1st_Innings->Batting_Team
-1st_Innings->Fielding_Team
-Batting_Team->Fielding_wickets
-Batting_Team->Leg_Byes
-Batting_Team->1s
-Batting_Team->2s
-Batting_Team->4s
-Batting_Team->6s
-Batting_Team->Byes
-Batting_Team->Maiden_Overs
-Batting_Team->Overs_Seam
-Batting_Team->Overs_Spin
-Fielding_Team->Fielding_wickets
-Fielding_Team->Leg_Byes
-Fielding_Team->Byes
-Fielding_Team->Overs_Seam
-Fielding_Team->Overs_Spin
 Fielding_wickets->Total_Wickets_Lost
 Leg_Byes->Total_Runs
 No_Balls->Fielding_wickets
@@ -212,46 +195,66 @@ No_Balls->1s
 No_Balls->2s
 No_Balls->4s
 No_Balls->6s
-No_Balls->Total_Overs_Faced
+No_Balls->Total_Balls_Faced
 No_Balls->Total_Runs
 1s->Total_Runs
 2s->Total_Runs
 4s->Total_Runs
 6s->Total_Runs
+Batting->Fielding_wickets
+Batting->Leg_Byes
+Batting->1s
+Batting->2s
+Batting->4s
+Batting->6s
+Batting->Byes
+Batting->Dot_Ball
+Batting->Seam_Delivery
+Batting->Spin_Delivery
 Byes->Total_Runs
-Maiden_Overs->Total_Overs_Faced
-Match->Batting_Team
-Match->Fielding_Team
-Match->Toss_outcome
-Overs_Seam->Leg_Byes
-Overs_Seam->No_Balls
-Overs_Seam->1s
-Overs_Seam->2s
-Overs_Seam->4s
-Overs_Seam->6s
-Overs_Seam->Byes
-Overs_Seam->Maiden_Overs
-Overs_Seam->Total_Overs_Faced
-Overs_Seam->Total_Wickets_Lost
-Overs_Seam->Wides
-Overs_Spin->Leg_Byes
-Overs_Spin->No_Balls
-Overs_Spin->1s
-Overs_Spin->2s
-Overs_Spin->4s
-Overs_Spin->6s
-Overs_Spin->Byes
-Overs_Spin->Maiden_Overs
-Overs_Spin->Total_Overs_Faced
-Overs_Spin->Total_Wickets_Lost
-Overs_Spin->Wides
-Toss_outcome->1st_Innings
-Total_Overs_Faced->Total_Runs
+Dot_Ball->Total_Balls_Faced
+Innings->Batting
+Match->Opposition
+Match->Team
+Opposition->Fielding_wickets
+Opposition->Leg_Byes
+Opposition->No_Balls
+Opposition->Byes
+Opposition->Seam_Delivery
+Opposition->Spin_Delivery
+Opposition->Toss_outcome
+Seam_Delivery->Leg_Byes
+Seam_Delivery->No_Balls
+Seam_Delivery->1s
+Seam_Delivery->2s
+Seam_Delivery->4s
+Seam_Delivery->6s
+Seam_Delivery->Byes
+Seam_Delivery->Dot_Ball
+Seam_Delivery->Total_Balls_Faced
+Seam_Delivery->Total_Wickets_Lost
+Seam_Delivery->Wides
+Spin_Delivery->Leg_Byes
+Spin_Delivery->No_Balls
+Spin_Delivery->1s
+Spin_Delivery->2s
+Spin_Delivery->4s
+Spin_Delivery->6s
+Spin_Delivery->Byes
+Spin_Delivery->Dot_Ball
+Spin_Delivery->Total_Balls_Faced
+Spin_Delivery->Total_Wickets_Lost
+Spin_Delivery->Wides
+Team->Batting
+Team->Toss_outcome
+Toss_outcome->Batting
+Total_Balls_Faced->Total_Runs
 Total_Runs->Win_Lose
-Total_Wickets_Lost->Total_Overs_Faced
-Wides->Total_Overs_Faced
+Total_Wickets_Lost->Total_Balls_Faced
+Wides->Total_Balls_Faced
 Wides->Total_Runs
 Wides->Total_Wickets_Lost
+
 }
 
 ")
@@ -268,13 +271,29 @@ add_exposure_outcome <- function(dag,exposure,outcome) {
 plot_innings_runs_dag <- function(dag) {
   dag |>
     tidy_dagitty(layout = "time_ordered") |>
+    
+    # Adds adjustment sets
     dag_adjustment_sets() |>
-    filter(set == "{Match}") |>
+    
+    # Select the adjustment set (note, set exposures/outcome on dagitty and select)
+    filter(set == "{Opposition}") |>
+    
+    # Adds node status (i.e., exposures/outcome and minimal adjustment from adjustment set)
     node_status() |>
+    
+    # Add any additional adjusted variables (change/add the name conditions)
+    mutate(status = case_when(
+      (name == "Match" | name == "Team") ~ "adjusted",
+      .default = status
+    )) |>
+    
+    # Create column with labels for plot
     mutate(label = case_when(
       is.na(status) == TRUE ~ adjusted,
       .default = status
     )) |>
+    
+    # Plot DAG
     ggplot(aes(x=x, y=y, xend=xend, yend=yend, color=label)) +
     geom_dag_point() +
     geom_dag_edges_diagonal(edge_alpha = 0.5) +
@@ -290,33 +309,44 @@ sample_innings_runs <- function(data) {
   set.seed(1988)
   
   first_innings_sample <- data |>
-    group_by(match_id) |>
+    
+    mutate(
+      team_a = batting_team,
+      team_b = bowling_team
+    ) |>
+    
+    pivot_longer(batting_team:bowling_team,
+                 names_to = "batting",
+                 values_to = "team") |>
+    mutate(
+      opposition = case_when(
+        team == team_a ~ team_b,
+        team == team_b ~ team_a
+      ),
+      
+      batting = case_when(
+        batting == "batting_team" ~ 1,
+        .default = 0
+      )
+    ) |>
+    
+    group_by(match_id, team) |>
     arrange(innings) |>
     mutate(
-      total_runs_batting = case_when(
-        innings == 1 ~ lead(total_runs),
+      total_runs = case_when(
+        batting == 0 ~ lead(total_runs),
         .default = total_runs
       )
     ) |>
-    select(match_id, innings, batting_team, bowling_team, total_runs, total_runs_batting) |>
+    select(match_id, innings, team, batting, opposition, total_wickets_lost, total_overs_faced, total_runs, winning_team, toss_winner, DLS) |>
     filter(innings == 1) |>
     ungroup() |>
-    slice_sample(prop = 0.1) |>
-    pivot_longer(5:6,
-                 names_to = "x",
-                 values_to = "total_runs") |>
-    pivot_longer(3:4,
-                 names_to = "batting",
-                 values_to = "team") |>
-    filter(x == "total_runs" & batting == "batting_team" |
-             x == "total_runs_batting" & batting == "bowling_team") |>
-    select(match_id, team, batting, total_runs)  |>
-    mutate(match_id = as.factor(match_id)) 
+    slice_sample(prop = 0.1)
   
 }
 
 model_innings_runs <- function(sample) {
-  model_first_innings_sample <- glmer(total_runs ~ batting + (1|match_id) + (1|team),
+  model_first_innings_sample <- glmer(total_runs ~ factor(batting) + (1|match_id) + (1|team) + (1|opposition),
                         family = "poisson",
                         data = sample)
 }

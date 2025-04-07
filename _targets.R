@@ -108,7 +108,7 @@ list(
   tar_target(
     name = innings_runs_dag,
     command = add_exposure_outcome(
-      main_dag, "1st_Innings", "Total_Runs"
+      main_dag, c("Innings", "Batting"), "Total_Runs"
     )
   ),
   
@@ -121,7 +121,7 @@ list(
     name = innings_runs_sample,
     command = sample_innings_runs(total_scores)
   ),
-  
+
   tar_target(
     name = innings_runs_sample_model,
     command = model_innings_runs(innings_runs_sample)
